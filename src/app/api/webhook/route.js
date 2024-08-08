@@ -1,9 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
-import dotenv from 'dotenv';
 import { shopifyApi, LATEST_API_VERSION, Session } from '@shopify/shopify-api';
-
-dotenv.config();
 
 const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
