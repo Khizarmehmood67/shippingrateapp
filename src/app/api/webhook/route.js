@@ -1,18 +1,12 @@
+import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 
-export async function POST(req, res) {
-  const { SHOPIFY_API_KEY, SHOPIFY_API_SECRET, SHOPIFY_SHOP } = process.env;
+export async function POST(req) {
+  const { SHOPIFY_API_SECRET, SHOPIFY_SHOP } = process.env;
 
   try {
-    const body = await new Promise((resolve) => {
-      let data = '';
-      req.on('data', chunk => {
-        data += chunk;
-      });
-      req.on('end', () => {
-        resolve(JSON.parse(data));
-      });
-    });
+    // Parse the request body
+    const body = await req.json();
 
     console.log('Received body:', body);  // Log the entire incoming body for debugging
 
@@ -30,7 +24,7 @@ export async function POST(req, res) {
         shippingCost = productPrice * 0.2; // 20% of the product price
       } else {
         console.log('Normal shipping options apply for order:', orderId);
-        return res.status(200).json({ message: 'Normal shipping options apply' });
+        return NextResponse.json({ message: 'Normal shipping options apply' });
       }
 
       console.log(`Calculated shipping cost for order ${orderId}: ${shippingCost}`);
@@ -59,13 +53,19 @@ export async function POST(req, res) {
       );
 
       console.log('Order updated:', response.data);
-      return res.status(200).json({ message: 'Webhook received' });
+      return NextResponse.json({ message: 'Webhook received' });
     } else {
       console.log('Non-order payload received:', body);
-      return res.status(200).json({ message: 'Non-order payload received' });
+      return NextResponse.json({ message: 'Non-order payload received' });
     }
   } catch (error) {
     console.error('Error processing webhook:', error);
-    return res.status(500).json({ message: 'Internal Server Error' });
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export const config = {
+  api: {
+    bodyParser: false, // Disabling Next.js body parsing
+  },
+};
