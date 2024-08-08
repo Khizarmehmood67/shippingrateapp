@@ -1,60 +1,10 @@
-import { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
-import { shopifyApi, LATEST_API_VERSION, Session } from '@shopify/shopify-api';
 
-const shopify = shopifyApi({
-  apiKey: process.env.SHOPIFY_API_KEY,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET,
-  scopes: process.env.SHOPIFY_SCOPES.split(','),
-  hostName: process.env.HOST_NAME.replace(/https?:\/\//, ""),
-  apiVersion: LATEST_API_VERSION,
-  isEmbeddedApp: false,
-});
-
-const updateOrderShippingCost = async (orderId, shippingCost) => {
-  const session = new Session({
-    shop: process.env.SHOPIFY_SHOP,
-    state: 'state',
-    isOnline: false,
-  });
-
-  session.accessToken = process.env.SHOPIFY_API_SECRET;
-
-  const client = new shopify.clients.Rest({ session });
-
-  const data = {
-    order: {
-      id: orderId,
-      shipping_lines: [
-        {
-          title: 'Custom Shipping',
-          price: shippingCost,
-          code: 'CUSTOM_SHIPPING',
-          source: 'custom-shopify-app'
-        }
-      ]
-    }
-  };
+export async function POST(req, res) {
+  const { SHOPIFY_API_KEY, SHOPIFY_API_SECRET, SHOPIFY_SHOP } = process.env;
 
   try {
-    const response = await client.put({
-      path: `orders/${orderId}`,
-      data,
-      type: 'application/json',
-    });
-    console.log('Order updated:', response.body);
-  } catch (error) {
-    console.error('Error updating order:', error.response.data);
-  }
-};
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).send('Method Not Allowed');
-  }
-
-  try {
-    const { order } = req.body;
+    const { order } = await req.json();
     console.log('Received order:', order);  // Log incoming order for debugging
     const orderPrice = order.total_price / 100; // Convert from cents to euros
 
@@ -65,14 +15,36 @@ export default async function handler(req, res) {
       shippingCost = productPrice * 0.2; // 20% of the product price
     } else {
       // Do nothing; normal shipping options will apply.
-      return res.status(200).send('Normal shipping options apply');
+      return res.status(200).json({ message: 'Normal shipping options apply' });
     }
 
-    await updateOrderShippingCost(order.id, Math.round(shippingCost * 100)); // Convert back to cents for Shopify
+    const response = await axios.put(
+      `https://${SHOPIFY_SHOP}/admin/api/2022-04/orders/${order.id}.json`,
+      {
+        order: {
+          id: order.id,
+          shipping_lines: [
+            {
+              title: 'Custom Shipping',
+              price: Math.round(shippingCost * 100), // Convert back to cents for Shopify
+              code: 'CUSTOM_SHIPPING',
+              source: 'custom-shopify-app'
+            }
+          ]
+        }
+      },
+      {
+        headers: {
+          'X-Shopify-Access-Token': SHOPIFY_API_SECRET,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
 
-    res.status(200).send('Webhook received');
+    console.log('Order updated:', response.data);
+    return res.status(200).json({ message: 'Webhook received' });
   } catch (error) {
     console.error('Error processing webhook:', error);
-    res.status(500).send('Internal Server Error');
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
 }
